@@ -12,7 +12,7 @@ import {
   FileText,
   HelpCircle,
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from "./authcontext";
 import { useData } from '../context/DataContext';
 import { ChatMessage } from '../types';
 
