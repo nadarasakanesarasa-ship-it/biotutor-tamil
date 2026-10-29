@@ -13,7 +13,7 @@ import {
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from './AuthContext';
 import { BiologyTopic, BiologyNote, PdfDocument, QuizResult } from '../types';
-import { INITIAL_TOPICS, INITIAL_NOTES, INITIAL_PDFS, normalizeTopicLabel } from '../data/seedData';
+import { INITIAL_TOPICS, INITIAL_NOTES, INITIAL_PDFS, normalizeTopicLabel } from "./seedata";
 
 interface DataContextType {
   topics: BiologyTopic[];
