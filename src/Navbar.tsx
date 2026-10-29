@@ -13,7 +13,7 @@ import {
   FileSpreadsheet,
   Info,
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from "./authcontext";
 
 interface NavbarProps {
   currentTab: string;
