@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { AuthProvider } from './context/AuthContext';
-import { DataProvider } from './context/DataContext';
-import { Navbar } from './components/Navbar';
-import { Footer } from './components/Footer';
-import { HomeDashboard } from './components/HomeDashboard';
-import { AITutorView } from './components/AITutorView';
-import { NotesView } from './components/NotesView';
-import { PdfLibraryView } from './components/PdfLibraryView';
-import { PracticeQuizView } from './components/PracticeQuizView';
-import { ProfileView } from './components/ProfileView';
-import { AuthModal } from './components/AuthModal';
-import { SetupGuideModal } from './components/SetupGuideModal';
+import { AuthProvider } from './AuthContext';
+import { DataProvider } from './DataContext';
+import { Navbar } from './Navbar';
+import { Footer } from './Footer';
+import { HomeDashboard } from './HomeDashboard';
+import { AITutorView } from './AITutorView';
+import { NotesView } from './NotesView';
+import { PdfLibraryView } from './PdfLibraryView';
+import { PracticeQuizView } from './PracticeQuizView';
+import { ProfileView } from './ProfileView';
+import { AuthModal } from './AuthModal';
+import { SetupGuideModal } from './SetupGuideModal';
 
 function MainApp() {
   const [currentTab, setCurrentTab] = useState<string>('home');
