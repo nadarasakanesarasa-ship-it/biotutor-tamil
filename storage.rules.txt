@@ -1,0 +1,35 @@
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'nadarasakanesarasa@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    match /pdfs/{fileName} {
+
+      // Everyone can view and download published PDFs
+      allow read: if true;
+
+      // Only verified admin can upload PDF files
+      allow create: if isAdmin()
+        && request.resource.size <= 20 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+
+      // Only verified admin can delete PDFs
+      allow delete: if isAdmin();
+
+      // Prevent replacing existing files
+      allow update: if false;
+    }
+
+    // Deny all other storage paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

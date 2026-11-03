@@ -1,0 +1,7 @@
+{
+  "name": "BioTutor Tamil",
+  "description": "A/L Biology — தமிழில் கற்போம். Sri Lankan GCE A/L Biology learning platform with AI Tutor, notes, PDF library, and quizzes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

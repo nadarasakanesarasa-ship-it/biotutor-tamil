@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+  return isSignedIn() &&
+         request.auth.token.get('admin', false) == true;
+}
+    // Entity Validation Helpers
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'displayName', 'role']) &&
+             data.keys().hasOnly(['email', 'displayName', 'role', 'createdAt']) &&
+             data.email is string && data.email.size() <= 150 &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.role in ['student', 'admin'];
+    }
+
+    function isValidNote(data) {
+      return data.keys().hasAll(['title', 'topic', 'content', 'authorId']) &&
+             data.keys().hasOnly(['title', 'topic', 'subtopic', 'content', 'authorId', 'authorName', 'createdAt', 'updatedAt']) &&
+             data.title is string && data.title.size() >= 3 && data.title.size() <= 200 &&
+             data.topic is string && data.topic.size() <= 100 &&
+             (!('subtopic' in data) || (data.subtopic is string && data.subtopic.size() <= 150)) &&
+             data.content is string && data.content.size() <= 50000 &&
+             data.authorId is string && data.authorId == request.auth.uid &&
+             (!('authorName' in data) || (data.authorName is string && data.authorName.size() <= 100));
+    }
+
+    function isValidPdfDoc(data) {
+      return data.keys().hasAll(['title', 'topic', 'downloadUrl', 'authorId']) &&
+             data.keys().hasOnly(['title', 'topic', 'description', 'downloadUrl', 'fileName', 'fileSize', 'extractedText', 'authorId', 'uploadedAt']) &&
+             data.title is string && data.title.size() >= 3 && data.title.size() <= 200 &&
+             data.topic is string && data.topic.size() <= 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+             data.downloadUrl is string && data.downloadUrl.size() <= 2048 &&
+             (!('fileName' in data) || (data.fileName is string && data.fileName.size() <= 255)) &&
+             (!('fileSize' in data) || data.fileSize is number) &&
+             (!('extractedText' in data) || (data.extractedText is string && data.extractedText.size() <= 100000)) &&
+             data.authorId is string && data.authorId == request.auth.uid;
+    }
+
+    function isValidTopic(data) {
+      return data.keys().hasAll(['name', 'nameEn']) &&
+             data.keys().hasOnly(['name', 'nameEn', 'description', 'order']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.nameEn is string && data.nameEn.size() <= 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+             (!('order' in data) || data.order is number);
+    }
+
+    function isValidQuizResult(data) {
+      return data.keys().hasAll(['userId', 'topic', 'score', 'total', 'completedAt']) &&
+             data.keys().hasOnly(['userId', 'topic', 'score', 'total', 'percentage', 'completedAt']) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.topic is string && data.topic.size() <= 100 &&
+             data.score is number && data.score >= 0 &&
+             data.total is number && data.total >= 0 &&
+             (!('percentage' in data) || data.percentage is number) &&
+             data.completedAt is string && data.completedAt.size() <= 50;
+    }
+
+    // Collection Rules
+
+    // Users Collection: Profile access
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming()) && (
+        incoming().role == 'student' || isAdmin()
+      );
+      allow update: if isOwner(userId) && isValidUser(incoming()) && (
+        incoming().role == existing().role || isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Admins Collection: Marker documents
+   match /admins/{adminId} {
+  allow read, write: if false;
+}
+
+    // Notes Collection: Shared Biology study notes
+    match /notes/{noteId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(noteId) && isValidNote(incoming());
+      allow update: if isAdmin() && isValidId(noteId) && isValidNote(incoming()) &&
+                    incoming().authorId == existing().authorId;
+      allow delete: if isAdmin() && isValidId(noteId);
+    }
+
+    // PDFs Collection: Biology PDF notes and extracted text
+    match /pdfs/{pdfId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(pdfId) && isValidPdfDoc(incoming());
+      allow update: if isAdmin() && isValidId(pdfId) && isValidPdfDoc(incoming()) &&
+                    incoming().authorId == existing().authorId;
+      allow delete: if isAdmin() && isValidId(pdfId);
+    }
+
+    // Topics Collection: Biology curriculum topics
+    match /topics/{topicId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(topicId) && isValidTopic(incoming());
+      allow update: if isAdmin() && isValidId(topicId) && isValidTopic(incoming());
+      allow delete: if isAdmin() && isValidId(topicId);
+    }
+
+    // Shared MCQ question bank. Only admins can publish or remove questions.
+    match /quiz_questions/{questionId} {
+      allow read: if false;
+      allow create, update: if isAdmin() && isValidId(questionId) &&
+        incoming().keys().hasAll(['question', 'topic', 'options', 'correctIndex', 'explanation']) &&
+        incoming().keys().hasOnly(['question', 'topic', 'options', 'correctIndex', 'explanation']) &&
+        incoming().question is string && incoming().question.size() >= 3 && incoming().question.size() <= 2000 &&
+        incoming().topic is string && incoming().topic.size() <= 100 &&
+        incoming().options is list && incoming().options.size() >= 2 && incoming().options.size() <= 5 &&
+        incoming().correctIndex is int && incoming().correctIndex >= 0 && incoming().correctIndex < incoming().options.size() &&
+        incoming().explanation is string && incoming().explanation.size() <= 3000;
+      allow delete: if isAdmin() && isValidId(questionId);
+    }
+
+    // Quiz Results Collection: Student practice attempts
+    match /quiz_results/{resultId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if false;
+      allow update: if false; // Quiz submissions are immutable historical records
+      allow delete: if isAdmin();
+    }
+  }
+}
