@@ -133,7 +133,7 @@ service cloud.firestore {
 
     // Shared MCQ question bank. Only admins can publish or remove questions.
     match /quiz_questions/{questionId} {
-      allow read: if false;
+      allow read: if isAdmin();
       allow create, update: if isAdmin() && isValidId(questionId) &&
         incoming().keys().hasAll(['question', 'topic', 'options', 'correctIndex', 'explanation']) &&
         incoming().keys().hasOnly(['question', 'topic', 'options', 'correctIndex', 'explanation']) &&
@@ -145,6 +145,24 @@ service cloud.firestore {
       allow delete: if isAdmin() && isValidId(questionId);
     }
 
+
+    // Public MCQ questions: answers and explanations must never be stored here.
+    match /quiz_questions_public/{questionId} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() &&
+        isValidId(questionId) &&
+        incoming().keys().hasAll(['question', 'topic', 'options']) &&
+        incoming().keys().hasOnly(['question', 'topic', 'options']) &&
+        incoming().question is string &&
+        incoming().question.size() >= 3 &&
+        incoming().question.size() <= 2000 &&
+        incoming().topic is string &&
+        incoming().topic.size() <= 100 &&
+        incoming().options is list &&
+        incoming().options.size() >= 2 &&
+        incoming().options.size() <= 5;
+      allow delete: if isAdmin() && isValidId(questionId);
+    }
     // Quiz Results Collection: Student practice attempts
     match /quiz_results/{resultId} {
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());

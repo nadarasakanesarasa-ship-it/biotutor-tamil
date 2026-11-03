@@ -14,6 +14,7 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
+  writeBatch,
   onSnapshot,
 } from 'firebase/firestore';
 
@@ -38,6 +39,7 @@ import {
   INITIAL_TOPICS,
   INITIAL_NOTES,
   INITIAL_PDFS,
+  INITIAL_QUIZ_QUESTIONS,
   normalizeTopicLabel,
 } from '../data/seedData';
 
@@ -84,6 +86,7 @@ interface DataContextType {
   ) => Promise<boolean>;
 
   deleteQuizQuestion: (id: string) => Promise<boolean>;
+  migrateInitialQuizQuestions: () => Promise<boolean>;
 
   updateNote: (
     id: string,
@@ -252,33 +255,9 @@ export function DataProvider({
     const version = requestVersion.current;
 
     try {
-      const idToken = await user.getIdToken(true);
-
-      const response = await fetch(
-        `${FUNCTIONS_BASE_URL}/getAdminQuizQuestions`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-          cache: 'no-store',
-        }
+      const snapshot = await getDocs(
+        collection(db, 'quiz_questions')
       );
-
-      if (!response.ok) {
-        throw new Error(
-          `Admin quiz request failed: ${response.status}`
-        );
-      }
-
-      const result = await response.json();
-
-      if (
-        result.success !== true ||
-        !Array.isArray(result.questions)
-      ) {
-        throw new Error('Invalid admin quiz response');
-      }
 
       if (
         version !== requestVersion.current ||
@@ -287,9 +266,12 @@ export function DataProvider({
         return;
       }
 
-      setAdminQuizQuestions(
-        result.questions as QuizQuestion[]
-      );
+      const questions = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      })) as QuizQuestion[];
+
+      setAdminQuizQuestions(questions);
     } catch (error) {
       console.error('Admin MCQ loading failed:', error);
 
@@ -299,6 +281,50 @@ export function DataProvider({
     }
   }, [currentUser, isAdmin]);
 
+  // --------------------------------------------------
+  // MIGRATE INITIAL MCQ QUESTIONS (ADMIN ONLY)
+  // --------------------------------------------------
+
+  const migrateInitialQuizQuestions = async (): Promise<boolean> => {
+    if (!currentUser || !isAdmin) {
+      return false;
+    }
+
+    try {
+      const [privateSnapshot, publicSnapshot] = await Promise.all([
+        getDocs(collection(db, 'quiz_questions')),
+        getDocs(collection(db, 'quiz_questions_public')),
+      ]);
+
+      const privateIds = new Set(privateSnapshot.docs.map((item) => item.id));
+      const publicIds = new Set(publicSnapshot.docs.map((item) => item.id));
+      const batch = writeBatch(db);
+
+      for (const question of INITIAL_QUIZ_QUESTIONS) {
+        const { id, correctIndex, explanation, ...publicQuestion } = question;
+
+        if (!privateIds.has(id)) {
+          batch.set(doc(db, 'quiz_questions', id), question);
+        }
+
+        if (!publicIds.has(id)) {
+          batch.set(doc(db, 'quiz_questions_public', id), publicQuestion);
+        }
+      }
+
+      await batch.commit();
+
+      await Promise.all([
+        loadAdminQuizQuestions(),
+        loadQuizQuestions(),
+      ]);
+
+      return true;
+    } catch (error) {
+      console.error('Initial MCQ migration failed:', error);
+      return false;
+    }
+  };
   // --------------------------------------------------
   // LOAD ADMIN USERS
   // --------------------------------------------------
@@ -406,33 +432,9 @@ export function DataProvider({
     const version = requestVersion.current;
 
     try {
-      const idToken = await user.getIdToken(true);
-
-      const response = await fetch(
-        `${FUNCTIONS_BASE_URL}/getSafeQuizQuestions`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-          cache: 'no-store',
-        }
+      const snapshot = await getDocs(
+        collection(db, 'quiz_questions_public')
       );
-
-      if (!response.ok) {
-        throw new Error(
-          `Quiz request failed: ${response.status}`
-        );
-      }
-
-      const result = await response.json();
-
-      if (
-        result.success !== true ||
-        !Array.isArray(result.questions)
-      ) {
-        throw new Error('Invalid quiz response');
-      }
 
       if (
         version !== requestVersion.current ||
@@ -441,9 +443,14 @@ export function DataProvider({
         return;
       }
 
-      setQuizQuestions(
-        result.questions as PublicQuizQuestion[]
-      );
+      const questions = snapshot.docs.map((item) => ({
+        id: item.id,
+        question: item.data().question,
+        topic: item.data().topic,
+        options: item.data().options,
+      })) as PublicQuizQuestion[];
+
+      setQuizQuestions(questions);
     } catch (error) {
       console.error('Quiz questions loading failed:', error);
 
@@ -698,7 +705,7 @@ export function DataProvider({
     questionData: Omit<QuizQuestion, 'id'>
   ): Promise<boolean> => {
     if (!currentUser || !isAdmin) {
-      throw new Error('நிர்வாகி அனுமதி தேவை.');
+      throw new Error('Admin permission required.');
     }
 
     if (
@@ -706,6 +713,7 @@ export function DataProvider({
       !questionData.topic?.trim() ||
       !Array.isArray(questionData.options) ||
       questionData.options.length < 2 ||
+      questionData.options.length > 5 ||
       questionData.options.some(
         (option) => typeof option !== 'string' || !option.trim()
       ) ||
@@ -714,23 +722,33 @@ export function DataProvider({
       questionData.correctIndex >= questionData.options.length ||
       !questionData.explanation?.trim()
     ) {
-      throw new Error('விடைத் தேர்வுகளைச் சரிபார்க்கவும்.');
+      throw new Error('Please check the question and answer options.');
     }
 
     const id =
       `mcq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
+    const privateQuestion = {
+      question: questionData.question.trim(),
+      topic: questionData.topic.trim(),
+      options: questionData.options.map((option) => option.trim()),
+      correctIndex: questionData.correctIndex,
+      explanation: questionData.explanation.trim(),
+    };
+
+    const publicQuestion = {
+      question: privateQuestion.question,
+      topic: privateQuestion.topic,
+      options: privateQuestion.options,
+    };
+
     try {
-      await setDoc(
-        doc(db, 'quiz_questions', id),
-        {
-          ...questionData,
-          question: questionData.question.trim(),
-          topic: questionData.topic.trim(),
-          options: questionData.options.map((option) => option.trim()),
-          explanation: questionData.explanation.trim(),
-        }
-      );
+      const batch = writeBatch(db);
+
+      batch.set(doc(db, 'quiz_questions', id), privateQuestion);
+      batch.set(doc(db, 'quiz_questions_public', id), publicQuestion);
+
+      await batch.commit();
 
       await Promise.all([
         loadAdminQuizQuestions(),
@@ -752,7 +770,7 @@ export function DataProvider({
     id: string
   ): Promise<boolean> => {
     if (!currentUser || !isAdmin) {
-      throw new Error('நிர்வாகி அனுமதி தேவை.');
+      throw new Error('Admin permission required.');
     }
 
     if (!id.trim()) {
@@ -760,9 +778,12 @@ export function DataProvider({
     }
 
     try {
-      await deleteDoc(
-        doc(db, 'quiz_questions', id)
-      );
+      const batch = writeBatch(db);
+
+      batch.delete(doc(db, 'quiz_questions', id));
+      batch.delete(doc(db, 'quiz_questions_public', id));
+
+      await batch.commit();
 
       await Promise.all([
         loadAdminQuizQuestions(),
@@ -1143,6 +1164,7 @@ export function DataProvider({
         addTopic,
         addQuizQuestion,
         deleteQuizQuestion,
+        migrateInitialQuizQuestions,
         updateNote,
         deleteNote,
         addPdfDoc,

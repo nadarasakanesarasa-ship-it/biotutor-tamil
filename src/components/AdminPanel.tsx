@@ -42,6 +42,7 @@ export function AdminPanel() {
     addTopic,
     addQuizQuestion,
     deleteQuizQuestion,
+    migrateInitialQuizQuestions,
     addPdfDoc,
     deletePdfDoc,
   } = useData();
@@ -49,6 +50,7 @@ export function AdminPanel() {
   const [section, setSection] = useState<Section>('overview');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [migrating, setMigrating] = useState(false);
 
   // Lesson form
   const [lessonTitle, setLessonTitle] = useState('');
@@ -335,6 +337,32 @@ export function AdminPanel() {
           ? err.message
           : 'நீக்கும்போது பிழை ஏற்பட்டது.'
       );
+    }
+  }
+
+  async function importInitialQuestions() {
+    if (migrating) return;
+
+    if (!window.confirm('முதல் 5 ஆரம்ப MCQ வினாக்களை இறக்குமதி செய்யவா?')) {
+      return;
+    }
+
+    setMigrating(true);
+    setNotice('');
+
+    try {
+      const ok = await migrateInitialQuizQuestions();
+      setNotice(
+        ok
+          ? 'ஆரம்ப 5 MCQ வினாக்கள் இறக்குமதி செய்யப்பட்டன.'
+          : 'MCQ வினாக்களை இறக்குமதி செய்ய முடியவில்லை. Firestore Rules மற்றும் Admin அனுமதியைச் சரிபார்க்கவும்.'
+      );
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : 'இறக்குமதியில் பிழை ஏற்பட்டது.'
+      );
+    } finally {
+      setMigrating(false);
     }
   }
 
@@ -849,6 +877,17 @@ export function AdminPanel() {
 
       {/* MCQs */}
       {section === 'mcqs' && (
+        <>
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={importInitialQuestions}
+            disabled={migrating}
+            className={buttonClass}
+          >
+            {migrating ? 'இறக்குமதி நடைபெறுகிறது...' : 'முதல் 5 MCQ வினாக்களை இறக்குமதி செய்'}
+          </button>
+        </div>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <form
             onSubmit={saveQuestion}
@@ -1023,6 +1062,7 @@ export function AdminPanel() {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* PDFs */}
