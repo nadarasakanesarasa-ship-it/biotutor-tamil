@@ -2,18 +2,22 @@ import React, { useEffect, useState } from 'react';
 import {
   HelpCircle,
   Sparkles,
-  CheckCircle,
-  XCircle,
   RotateCcw,
   Award,
   ChevronRight,
   BookOpen,
-  AlertCircle,
-  Zap,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { PublicQuizQuestion } from '../types';
+
+type GradedAnswer = {
+  questionId: string;
+  selectedIndex: number;
+  correct: boolean;
+  correctIndex: number;
+  explanation: string;
+};
 
 export const PracticeQuizView: React.FC = () => {
   const { currentUser } = useAuth();
@@ -25,158 +29,169 @@ export const PracticeQuizView: React.FC = () => {
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
   const [score, setScore] = useState(0);
   const [submittedAnswers, setSubmittedAnswers] = useState<
-  { questionId: string; selectedIndex: number }[]
->([]);
+    { questionId: string; selectedIndex: number }[]
+  >([]);
   const [isQuizComplete, setIsQuizComplete] = useState(false);
-  const [gradedAnswers, setGradedAnswers] = useState<
-  {
-    questionId: string;
-    selectedIndex: number;
-    correct: boolean;
-    correctIndex: number;
-    explanation: string;
-  }[]
->([]);
+  const [gradedAnswers, setGradedAnswers] = useState<GradedAnswer[]>([]);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [isGrading, setIsGrading] = useState(false);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
+  const [gradingError, setGradingError] = useState<string | null>(null);
 
-  // Load safe questions from the authenticated server endpoint.
-useEffect(() => {
-  if (quizQuestions.length === 0) {
-    setQuestions([]);
-    return;
-  }
+  // Load questions whenever the question bank or selected topic changes.
+  useEffect(() => {
+    const pool =
+      selectedTopic === 'all'
+        ? quizQuestions
+        : quizQuestions.filter((q) =>
+            q.topic.toLowerCase().includes(selectedTopic.toLowerCase()),
+          );
 
-  const pool = selectedTopic === 'all'
-    ? quizQuestions
-    : quizQuestions.filter((q) =>
-        q.topic.toLowerCase().includes(selectedTopic.toLowerCase())
-      );
+    setQuestions(pool);
+    restartQuiz(pool);
+    // restartQuiz is intentionally omitted: it only resets local quiz state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizQuestions, selectedTopic]);
 
-  setQuestions(pool);
-  restartQuiz(pool);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [quizQuestions]);
+  const restartQuiz = (newQuestions?: PublicQuizQuestion[]) => {
+    if (newQuestions) setQuestions(newQuestions);
 
-  // Filter or initialize questions
+    setCurrentIndex(0);
+    setSelectedOption(null);
+    setIsAnswerSubmitted(false);
+    setScore(0);
+    setSubmittedAnswers([]);
+    setIsQuizComplete(false);
+    setGradedAnswers([]);
+    setIsGrading(false);
+    setGradingError(null);
+  };
+
   const handleTopicChange = (topicName: string) => {
-  setSelectedTopic(topicName);
-
-  const pool =
-    topicName === 'all'
-      ? quizQuestions
-      : quizQuestions.filter((q) =>
-          q.topic.toLowerCase().includes(topicName.toLowerCase())
-        );
-
-  setQuestions(pool);
-  restartQuiz(pool);
-  setAiNotice(null);
-};
+    setSelectedTopic(topicName);
+    setAiNotice(null);
+    setGradingError(null);
+  };
 
   const handleSelectOption = (index: number) => {
-    if (isAnswerSubmitted) return;
+    if (isAnswerSubmitted || isGrading) return;
     setSelectedOption(index);
   };
 
   const handleSubmitAnswer = () => {
-  if (selectedOption === null || isAnswerSubmitted) return;
-
-  setIsAnswerSubmitted(true);
-};
-
-  const handleNextQuestion = async () => {
-  if (selectedOption === null || !currentUser) return;
-
-  const currentAnswer = {
-    questionId: questions[currentIndex].id,
-    selectedIndex: selectedOption,
+    if (selectedOption === null || isAnswerSubmitted || isGrading) return;
+    setIsAnswerSubmitted(true);
   };
 
-  const allAnswers = [...submittedAnswers, currentAnswer];
+  const handleNextQuestion = async () => {
+    if (selectedOption === null || !currentUser || isGrading) return;
 
-  if (currentIndex + 1 < questions.length) {
-    setSubmittedAnswers(allAnswers);
-    setCurrentIndex((prev) => prev + 1);
-    setSelectedOption(null);
-    setIsAnswerSubmitted(false);
-    return;
-  }
+    const currentAnswer = {
+      questionId: questions[currentIndex].id,
+      selectedIndex: selectedOption,
+    };
 
-  try {
-    const idToken = await currentUser.getIdToken();
+    const allAnswers = [...submittedAnswers, currentAnswer];
 
-    const response = await fetch(
-      'http://127.0.0.1:5001/biotutor-tamil/asia-south1/gradeQuizAttempt',
-      {
+    if (currentIndex + 1 < questions.length) {
+      setSubmittedAnswers(allAnswers);
+      setCurrentIndex((prev) => prev + 1);
+      setSelectedOption(null);
+      setIsAnswerSubmitted(false);
+      setGradingError(null);
+      return;
+    }
+
+    setIsGrading(true);
+    setGradingError(null);
+
+    try {
+      const idToken = await currentUser.getIdToken();
+
+      // Use the deployed Vercel API instead of the local Firebase Functions emulator.
+      const response = await fetch('/api/quiz/grade', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          topic: selectedTopic === 'all'
-            ? 'General A/L Biology'
-            : selectedTopic,
+          topic:
+            selectedTopic === 'all'
+              ? 'General A/L Biology'
+              : selectedTopic,
           answers: allAnswers,
         }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.error ||
+            result.message ||
+            'மதிப்பெண் கணக்கிட முடியவில்லை. மீண்டும் முயற்சிக்கவும்.',
+        );
       }
-    );
 
-    const result = await response.json();
-
-    if (!response.ok || !result.success) {
-      throw new Error(result.message || 'மதிப்பெண் கணக்கிட முடியவில்லை.');
+      setScore(result.score);
+      setGradedAnswers(result.gradedAnswers || []);
+      setIsQuizComplete(true);
+    } catch (error) {
+      console.error('Quiz grading error:', error);
+      setGradingError(
+        error instanceof Error
+          ? error.message
+          : 'மதிப்பெண் கணக்கிடுவதில் பிழை ஏற்பட்டது.',
+      );
+    } finally {
+      setIsGrading(false);
     }
+  };
 
-    setScore(result.score);
-    setGradedAnswers(result.gradedAnswers);
-    setIsQuizComplete(true);
-  } catch (error) {
-    console.error('Quiz grading error:', error);
-    alert('மதிப்பெண் கணக்கிடுவதில் பிழை. மீண்டும் முயற்சிக்கவும்.');
-  }
-};
-
-  const restartQuiz = (newQuestions?: PublicQuizQuestion[]) => {
-  if (newQuestions) setQuestions(newQuestions);
-
-  setCurrentIndex(0);
-  setSelectedOption(null);
-  setIsAnswerSubmitted(false);
-  setScore(0);
-  setSubmittedAnswers([]);
-  setIsQuizComplete(false);
-  setGradedAnswers([]);
-};
-
-  // Generate Fresh AI Practice Questions via Server API
+  // Generate Fresh AI Practice Questions via Server API.
   const handleGenerateAiQuiz = async () => {
     setIsAiGenerating(true);
     setAiNotice(null);
+    setGradingError(null);
+
     try {
-      const topicForAi = selectedTopic === 'all' ? 'General A/L Biology' : selectedTopic;
+      const topicForAi =
+        selectedTopic === 'all' ? 'General A/L Biology' : selectedTopic;
+
       const res = await fetch('/api/quiz/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(currentUser ? {
-            Authorization: `Bearer ${await currentUser.getIdToken()}`,
-          } : {}),
+          ...(currentUser
+            ? { Authorization: `Bearer ${await currentUser.getIdToken()}` }
+            : {}),
         },
         body: JSON.stringify({ topic: topicForAi, count: 5 }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success || !Array.isArray(data.questions) || data.questions.length === 0) {
+      const data = await res.json().catch(() => ({}));
+
+      if (
+        !res.ok ||
+        !data.success ||
+        !Array.isArray(data.questions) ||
+        data.questions.length === 0
+      ) {
         throw new Error(data.error || 'வினாக்களை உருவாக்க முடியவில்லை.');
       }
 
       setQuestions(data.questions);
-      setAiNotice('AI-ஆல் உருவாக்கப்பட்ட மாதிரிப் பயிற்சிகள் ஏற்றப்பட்டன (இது அதிகாரப்பூர்வ கடந்தகால வினாத்தாள் அல்ல).');
+      setAiNotice(
+        'AI-ஆல் உருவாக்கப்பட்ட மாதிரிப் பயிற்சிகள் ஏற்றப்பட்டன (இது அதிகாரப்பூர்வ கடந்தகால வினாத்தாள் அல்ல).',
+      );
       restartQuiz(data.questions);
-    } catch (err: any) {
-      alert('வினாக்கள் உருவாக்குவதில் பிழை: ' + (err?.message || 'Server error'));
+    } catch (error) {
+      console.error('AI quiz generation error:', error);
+      alert(
+        'வினாக்கள் உருவாக்குவதில் பிழை: ' +
+          (error instanceof Error ? error.message : 'Server error'),
+      );
     } finally {
       setIsAiGenerating(false);
     }
@@ -184,9 +199,8 @@ useEffect(() => {
 
   const currentQ = questions[currentIndex];
   const percentage =
-  questions.length > 0
-    ? Math.round((score / questions.length) * 100)
-    : 0;
+    questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
+
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-12">
       {/* Header */}
@@ -201,10 +215,10 @@ useEffect(() => {
           </p>
         </div>
 
-        {/* Generate with AI Button */}
+        {/* This header button remains disabled as in the supplied original file. */}
         <button
           onClick={handleGenerateAiQuiz}
-          disabled={true}
+          disabled={true || isAiGenerating}
           className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold text-xs shadow-md shadow-purple-600/20 transition-all flex items-center gap-2 self-start sm:self-auto disabled:opacity-50"
         >
           {isAiGenerating ? (
@@ -248,6 +262,15 @@ useEffect(() => {
         </div>
       )}
 
+      {gradingError && (
+        <div
+          role="alert"
+          className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800"
+        >
+          {gradingError}
+        </div>
+      )}
+
       {/* Quiz Card */}
       {!isQuizComplete && currentQ ? (
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-xs space-y-6">
@@ -274,45 +297,43 @@ useEffect(() => {
             {currentQ.question}
           </h3>
 
+          {/* 5 Options */}
+          <div className="space-y-3 pt-2">
+            {currentQ.options.map((opt, idx) => {
+              const isSelected = selectedOption === idx;
 
-{/* 5 Options */}
-<div className="space-y-3 pt-2">
-  {currentQ.options.map((opt, idx) => {
-    const isSelected = selectedOption === idx;
+              let optionStyle =
+                'border-gray-200 bg-white hover:bg-gray-50 text-gray-800';
 
-    let optionStyle =
-      'border-gray-200 bg-white hover:bg-gray-50 text-gray-800';
+              if (isSelected) {
+                optionStyle =
+                  'border-amber-500 bg-amber-50 text-amber-900 font-semibold ring-2 ring-amber-400/40';
+              } else if (isAnswerSubmitted) {
+                optionStyle = 'border-gray-200 bg-gray-50/50 text-gray-500';
+              }
 
-    if (isSelected) {
-      optionStyle =
-        'border-amber-500 bg-amber-50 text-amber-900 font-semibold ring-2 ring-amber-400/40';
-    } else if (isAnswerSubmitted) {
-      optionStyle = 'border-gray-200 bg-gray-50/50 text-gray-500';
-    }
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleSelectOption(idx)}
+                  disabled={isAnswerSubmitted || isGrading}
+                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm transition-all flex items-start gap-3 ${optionStyle}`}
+                >
+                  <span className="w-6 h-6 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                    {String.fromCharCode(65 + idx)}
+                  </span>
+                  <span className="flex-1 leading-snug">{opt}</span>
+                </button>
+              );
+            })}
+          </div>
 
-    return (
-      <button
-        key={idx}
-        onClick={() => handleSelectOption(idx)}
-        disabled={isAnswerSubmitted}
-        className={`w-full text-left p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm transition-all flex items-start gap-3 ${optionStyle}`}
-      >
-        <span className="w-6 h-6 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-          {String.fromCharCode(65 + idx)}
-        </span>
-
-        <span className="flex-1 leading-snug">{opt}</span>
-      </button>
-    );
-  })}
-</div>
-
-{/* Answer Submission Notice */}
-{isAnswerSubmitted && (
-  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs sm:text-sm text-amber-800">
-    உங்கள் பதில் பதிவு செய்யப்பட்டது. முழு மதிப்பீடும் சரியான விடைகளுக்கான விளக்கங்களும் பயிற்சி முடிவில் காட்டப்படும்.
-  </div>
-)}
+          {/* Answer Submission Notice */}
+          {isAnswerSubmitted && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs sm:text-sm text-amber-800">
+              உங்கள் பதில் பதிவு செய்யப்பட்டது. முழு மதிப்பீடும் சரியான விடைகளுக்கான விளக்கங்களும் பயிற்சி முடிவில் காட்டப்படும்.
+            </div>
+          )}
 
           {/* Action buttons */}
           <div className="pt-4 flex items-center justify-between border-t border-gray-100">
@@ -323,7 +344,7 @@ useEffect(() => {
             {!isAnswerSubmitted ? (
               <button
                 onClick={handleSubmitAnswer}
-                disabled={selectedOption === null}
+                disabled={selectedOption === null || isGrading}
                 className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors disabled:opacity-40"
               >
                 விடையைச் சமர்ப்பி (Submit)
@@ -331,13 +352,24 @@ useEffect(() => {
             ) : (
               <button
                 onClick={handleNextQuestion}
-                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+                disabled={isGrading}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-60"
               >
-                <span>{currentIndex + 1 < questions.length ? 'அடுத்த வினா (Next)' : 'முடிவுகளைக் காண்க (Finish)'}</span>
-                <ChevronRight className="w-4 h-4" />
+                {isGrading ? (
+                  <span>மதிப்பீடு நடைபெறுகிறது...</span>
+                ) : (
+                  <>
+                    <span>{currentIndex + 1 < questions.length ? 'அடுத்த வினா (Next)' : 'முடிவுகளைக் காண்க (Finish)'}</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             )}
           </div>
+        </div>
+      ) : !isQuizComplete ? (
+        <div className="bg-white rounded-2xl p-8 border border-gray-200 text-center text-sm text-gray-600">
+          இந்த அலகில் தற்போது வினாக்கள் இல்லை.
         </div>
       ) : (
         /* Quiz Completed Score Card */
@@ -364,50 +396,45 @@ useEffect(() => {
               தேர்ச்சி வீதம்: {percentage}%
             </div>
           </div>
+
           {/* Final Answer Review */}
-<div className="text-left space-y-4">
-  <h4 className="text-lg font-bold text-gray-900">
-    விடைகளின் விளக்கம் (Answer Review)
-  </h4>
+          <div className="text-left space-y-4">
+            <h4 className="text-lg font-bold text-gray-900">
+              விடைகளின் விளக்கம் (Answer Review)
+            </h4>
 
-  {gradedAnswers.map((answer, index) => {
-    const question = questions.find(
-      (q) => q.id === answer.questionId
-    );
+            {gradedAnswers.map((answer, index) => {
+              const question = questions.find((q) => q.id === answer.questionId);
+              if (!question) return null;
 
-    if (!question) return null;
-
-    return (
-      <div
-        key={answer.questionId}
-        className="p-4 rounded-xl border border-gray-200 bg-gray-50 space-y-2"
-      >
-        <p className="font-semibold text-gray-900">
-          {index + 1}. {question.question}
-        </p>
-
-        <p className={answer.correct ? 'text-emerald-700' : 'text-red-700'}>
-          உங்கள் பதில்: {question.options[answer.selectedIndex]}
-        </p>
-
-        <p className="text-emerald-700 font-semibold">
-          சரியான விடை: {question.options[answer.correctIndex]}
-        </p>
-
-        <p className="text-sm text-gray-700 leading-relaxed">
-          விளக்கம்: {answer.explanation}
-        </p>
-      </div>
-    );
-  })}
-</div>
+              return (
+                <div
+                  key={answer.questionId}
+                  className="p-4 rounded-xl border border-gray-200 bg-gray-50 space-y-2"
+                >
+                  <p className="font-semibold text-gray-900">
+                    {index + 1}. {question.question}
+                  </p>
+                  <p className={answer.correct ? 'text-emerald-700' : 'text-red-700'}>
+                    உங்கள் பதில்: {question.options[answer.selectedIndex]}
+                  </p>
+                  <p className="text-emerald-700 font-semibold">
+                    சரியான விடை: {question.options[answer.correctIndex]}
+                  </p>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    விளக்கம்: {answer.explanation}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
 
           <p className="text-xs text-gray-600 max-w-sm mx-auto leading-relaxed">
             {percentage >= 80
               ? 'மிகச்சிறந்த பெறுபேறு! உயிரியல் எண்ணக்கருக்களில் நீங்கள் சிறந்து விளங்குகிறீர்கள்.'
               : percentage >= 50
-              ? 'நல்ல முயற்சி! தவறான விடைகளுக்கான விளக்கங்களை மீண்டும் வாசித்து திருத்திக் கொள்ளவும்.'
-              : 'தொடர்ந்து பயிற்சிகளை மேற்கொள்ளவும். குறிப்புகளையும் AI ஆசிரியரின் விளக்கங்களையும் பயன்படுத்தவும்.'}
+                ? 'நல்ல முயற்சி! தவறான விடைகளுக்கான விளக்கங்களை மீண்டும் வாசித்து திருத்திக் கொள்ளவும்.'
+                : 'தொடர்ந்து பயிற்சிகளை மேற்கொள்ளவும். குறிப்புகளையும் AI ஆசிரியரின் விளக்கங்களையும் பயன்படுத்தவும்.'}
           </p>
 
           <div className="pt-2 flex items-center justify-center gap-3">
@@ -422,10 +449,10 @@ useEffect(() => {
             <button
               onClick={handleGenerateAiQuiz}
               disabled={isAiGenerating}
-              className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
               <Sparkles className="w-4 h-4" />
-              <span>புதிய AI வினாக்கள்</span>
+              <span>{isAiGenerating ? 'உருவாக்கப்படுகிறது...' : 'புதிய AI வினாக்கள்'}</span>
             </button>
           </div>
         </div>

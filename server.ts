@@ -4,7 +4,10 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 import { PDFParse } from 'pdf-parse';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+import { SERVER_QUIZ_QUESTIONS } from './functions/src/quizBank';
 
 dotenv.config();
 
@@ -16,6 +19,34 @@ export default app;
 const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '30mb' }));
+
+// Firebase Admin is initialized only when a protected Firebase endpoint is used.
+function getFirebaseAdminApp() {
+  const existingApp = getApps().find(
+    (firebaseApp) => firebaseApp.name === '[DEFAULT]',
+  );
+
+  if (existingApp) return existingApp;
+
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error(
+      'Firebase Admin environment variables are missing. Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY in Vercel.',
+    );
+  }
+
+  return initializeApp({
+    credential: cert({
+      projectId,
+      clientEmail,
+      privateKey,
+    }),
+    projectId,
+  });
+}
 
 // In-memory rate limiting for cost protection (LKR 500 budget adherence)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -34,40 +65,6 @@ function checkRateLimit(key: string): { allowed: boolean; remaining: number } {
   }
   record.count += 1;
   return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - record.count };
-}
-
-
-// Firebase ID Token verification
-const FIREBASE_PROJECT_ID = 'biotutor-tamil';
-const firebaseJwks = createRemoteJWKSet(
-  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
-);
-
-async function requireFirebaseAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
-  try {
-    const authorization = req.headers.authorization || '';
-    const token = authorization.startsWith('Bearer ')
-      ? authorization.slice(7)
-      : '';
-
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const { payload } = await jwtVerify(token, firebaseJwks, {
-      issuer: `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`,
-      audience: FIREBASE_PROJECT_ID,
-    });
-
-    if (!payload.sub || typeof payload.sub !== 'string') {
-      return res.status(401).json({ error: 'Invalid user token' });
-    }
-
-    res.locals.firebaseUid = payload.sub;
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid or expired Firebase token' });
-  }
 }
 
 // Initialize Gemini SDK with User-Agent telemetry
@@ -108,7 +105,7 @@ app.post('/api/pdf/extract-text', async (req, res) => {
         extractedText: '',
         numPages,
         isScanned: true,
-        message: 'PDF à®•à¯‹à®ªà¯à®ªà®¾à®©à®¤à¯ à®ªà®Ÿ à®µà®Ÿà®¿à®µà®¿à®²à¯ (scanned image) à®‰à®³à¯à®³à®¤à®¾à®²à¯ à®‰à®°à¯ˆ à®ªà®¿à®°à®¿à®¤à¯à®¤à¯†à®Ÿà¯à®•à¯à®•à®ªà¯à®ªà®Ÿà®µà®¿à®²à¯à®²à¯ˆ. à®•à¯à®±à®¿à®ªà¯à®ªà¯ à®†à®µà®£à®•à¯ à®•à¯‹à®ªà¯à®ªà®¾à®• à®šà¯‡à®®à®¿à®•à¯à®•à®ªà¯à®ªà®Ÿà¯à®®à¯.',
+        message: 'PDF கோப்பானது பட வடிவில் (scanned image) உள்ளதால் உரை பிரித்தெடுக்கப்படவில்லை. குறிப்பு ஆவணக் கோப்பாக சேமிக்கப்படும்.',
       });
     }
 
@@ -120,25 +117,25 @@ app.post('/api/pdf/extract-text', async (req, res) => {
       extractedText: sanitizedText,
       numPages,
       isScanned: false,
-      message: `${numPages} à®ªà®•à¯à®•à®™à¯à®•à®³à®¿à®²à®¿à®°à¯à®¨à¯à®¤à¯ à®‰à®°à¯ˆ à®µà¯†à®±à¯à®±à®¿à®•à®°à®®à®¾à®• à®ªà®¿à®°à®¿à®¤à¯à®¤à¯†à®Ÿà¯à®•à¯à®•à®ªà¯à®ªà®Ÿà¯à®Ÿà®¤à¯ (${sanitizedText.length} à®Žà®´à¯à®¤à¯à®¤à¯à®•à¯à®•à®³à¯).`,
+      message: `${numPages} பக்கங்களிலிருந்து உரை வெற்றிகரமாக பிரித்தெடுக்கப்பட்டது (${sanitizedText.length} எழுத்துக்கள்).`,
     });
   } catch (error: any) {
     console.error('PDF extraction error:', error);
     return res.status(500).json({
       success: false,
-      error: 'PDF à®•à¯‹à®ªà¯à®ªà¯ˆ à®µà®¾à®šà®¿à®ªà¯à®ªà®¤à®¿à®²à¯ à®ªà®¿à®´à¯ˆ à®à®±à¯à®ªà®Ÿà¯à®Ÿà®¤à¯: ' + (error?.message || 'Unknown error'),
+      error: 'PDF கோப்பை வாசிப்பதில் பிழை ஏற்பட்டது: ' + (error?.message || 'Unknown error'),
     });
   }
 });
 
 // AI Biology Tutor Chat Endpoint
-app.post('/api/tutor/chat', requireFirebaseAuth, async (req, res) => {
+app.post('/api/tutor/chat', async (req, res) => {
   try {
-    const userIdentifier = res.locals.firebaseUid as string;
+    const userIdentifier = req.headers['x-user-id'] as string || req.ip || 'anonymous';
     const rateCheck = checkRateLimit(userIdentifier);
     if (!rateCheck.allowed) {
       return res.status(429).json({
-        error: 'à®•à¯‡à®³à¯à®µà®¿ à®Žà®£à¯à®£à®¿à®•à¯à®•à¯ˆ à®µà®°à®®à¯à®ªà¯ˆ à®Žà®Ÿà¯à®Ÿà®¿à®µà®¿à®Ÿà¯à®Ÿà¯€à®°à¯à®•à®³à¯ (Rate limit reached). à®¤à®¯à®µà¯à®šà¯†à®¯à¯à®¤à¯ à®šà®¿à®±à®¿à®¤à¯ à®¨à¯‡à®°à®®à¯ à®•à®´à®¿à®¤à¯à®¤à¯ à®®à¯à®¯à®±à¯à®šà®¿à®•à¯à®•à®µà¯à®®à¯ (Please wait a few minutes). à®šà¯†à®²à®µà¯à®•à¯à®•à®Ÿà¯à®Ÿà¯à®ªà¯à®ªà®¾à®Ÿà¯ à®µà®¿à®¤à®¿à®•à®³à®¿à®©à¯à®ªà®Ÿà®¿ à®‡à®¨à¯à®¤ à®µà®°à®®à¯à®ªà¯ à®ªà¯‡à®£à®ªà¯à®ªà®Ÿà¯à®•à®¿à®±à®¤à¯.',
+        error: 'கேள்வி எண்ணிக்கை வரம்பை எட்டிவிட்டீர்கள் (Rate limit reached). தயவுசெய்து சிறிது நேரம் கழித்து முயற்சிக்கவும் (Please wait a few minutes). செலவுக்கட்டுப்பாடு விதிகளின்படி இந்த வரம்பு பேணப்படுகிறது.',
       });
     }
 
@@ -147,35 +144,35 @@ app.post('/api/tutor/chat', requireFirebaseAuth, async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    const systemInstruction = `You are "BioTutor Tamil", an expert, patient, and encouraging Biology teacher specialized in the Sri Lankan GCE Advanced Level (A/L) Biology syllabus (à®•.à®ªà¯Š.à®¤. à®‰à®¯à®°à¯à®¤à®° à®‰à®¯à®¿à®°à®¿à®¯à®²à¯ à®ªà®¾à®Ÿà®¤à¯à®¤à®¿à®Ÿà¯à®Ÿà®®à¯).
+    const systemInstruction = `You are "BioTutor Tamil", an expert, patient, and encouraging Biology teacher specialized in the Sri Lankan GCE Advanced Level (A/L) Biology syllabus (க.பொ.த. உயர்தர உயிரியல் பாடத்திட்டம்).
 
 CORE PEDAGOGICAL DIRECTIVES:
-1. PRIMARY LANGUAGE: Respond primarily in clear, natural, grammatically correct Tamil (à®¤à®®à®¿à®´à¯).
+1. PRIMARY LANGUAGE: Respond primarily in clear, natural, grammatically correct Tamil (தமிழ்).
 2. SCIENTIFIC TERMINOLOGY: You MUST ALWAYS include English scientific and biological terms in parentheses next to Tamil terms.
    Examples:
-   - à®•à®² à®®à¯†à®©à¯à®šà®µà¯à®µà¯ (Cell membrane)
-   - à®‡à®´à¯ˆà®®à®£à®¿ (Mitochondria)
-   - à®’à®³à®¿à®šà¯à®šà¯‡à®°à¯à®•à¯à®•à¯ˆ (Photosynthesis)
-   - à®•à¯à®°à¯‹à®®à¯‹à®šà¯‹à®®à¯ / à®¨à®¿à®±à®®à¯‚à®°à¯à®¤à¯à®¤à®®à¯ (Chromosome)
-   - à®‡à®°à¯ˆà®ªà¯à®ªà¯ˆà®šà¯ à®šà®¾à®±à¯ (Gastric juice)
-   - à®¤à®¾à®µà®° à®µà®³à®°à¯à®šà¯à®šà®¿ à®šà¯€à®°à®¾à®•à¯à®•à®¿à®•à®³à¯ (Plant growth regulators)
-   - à®‡à®¯à®±à¯à®•à¯ˆ à®¤à¯‡à®°à¯à®µà¯ (Natural selection)
-   - à®¨à¯Šà®¤à®¿à®¯à®®à¯ (Enzyme)
+   - கல மென்சவ்வு (Cell membrane)
+   - இழைமணி (Mitochondria)
+   - ஒளிச்சேர்க்கை (Photosynthesis)
+   - குரோமோசோம் / நிறமூர்த்தம் (Chromosome)
+   - இரைப்பைச் சாறு (Gastric juice)
+   - தாவர வளர்ச்சி சீராக்கிகள் (Plant growth regulators)
+   - இயற்கை தேர்வு (Natural selection)
+   - நொதியம் (Enzyme)
 3. SYLLABUS ALIGNMENT: Strictly align with the Sri Lankan National Institute of Education (NIE) GCE A/L Biology Resource Books / Teacher's Guides across these 8 core units:
-   - Unit 1: Introduction to Biology & Cell Biology (à®•à®² à®‰à®¯à®¿à®°à®¿à®¯à®²à¯)
+   - Unit 1: Introduction to Biology & Cell Biology (கல உயிரியல்)
    - Unit 2: Chemical and Cellular Basis of Life
-   - Unit 3: Evolution and Diversity of Organisms (à®•à¯‚à®°à¯à®ªà¯à®ªà¯ à®®à®±à¯à®±à¯à®®à¯ à®…à®™à¯à®•à®¿à®•à®³à®¿à®©à¯ à®ªà®²à¯à®µà®•à¯ˆà®®à¯ˆ)
-   - Unit 4: Plant Form and Function (à®¤à®¾à®µà®° à®µà®Ÿà®¿à®µà®®à¯à®®à¯ à®¤à¯Šà®´à®¿à®²à¯à®®à¯)
-   - Unit 5: Animal Form and Function (à®µà®¿à®²à®™à¯à®•à¯ à®µà®Ÿà®¿à®µà®®à¯à®®à¯ à®¤à¯Šà®´à®¿à®²à¯à®®à¯)
-   - Unit 6: Genetics (à®®à®°à®ªà®¿à®¯à®²à¯)
+   - Unit 3: Evolution and Diversity of Organisms (கூர்ப்பு மற்றும் அங்கிகளின் பல்வகைமை)
+   - Unit 4: Plant Form and Function (தாவர வடிவமும் தொழிலும்)
+   - Unit 5: Animal Form and Function (விலங்கு வடிவமும் தொழிலும்)
+   - Unit 6: Genetics (மரபியல்)
    - Unit 7: Molecular Biology and Recombinant DNA Technology
-   - Unit 8: Environmental Biology / Ecology (à®šà¯‚à®´à®²à¯ à®‰à®¯à®¿à®°à®¿à®¯à®²à¯ / à®šà¯‚à®´à®²à®¿à®¯à®²à¯)
-   - Unit 9: Microbiology (à®¨à¯à®£à¯à®£à¯à®¯à®¿à®°à®¿à®¯à®²à¯)
-   - Unit 10: Applied Biology (à®ªà®¿à®°à®¯à¯‹à®• à®‰à®¯à®¿à®°à®¿à®¯à®²à¯)
+   - Unit 8: Environmental Biology / Ecology (சூழல் உயிரியல் / சூழலியல்)
+   - Unit 9: Microbiology (நுண்ணுயிரியல்)
+   - Unit 10: Applied Biology (பிரயோக உயிரியல்)
 4. RETRIEVAL CONTEXT HANDLING:
    If "UPLOADED NOTES CONTEXT" is provided below:
    - Check if the question is answered by or related to the notes.
-   - State clearly: "à®ªà®¤à®¿à®µà¯‡à®±à¯à®±à®ªà¯à®ªà®Ÿà¯à®Ÿ à®•à¯à®±à®¿à®ªà¯à®ªà¯à®•à®³à®¿à®©à¯ à®ªà®Ÿà®¿..." (According to the uploaded notes...).
+   - State clearly: "பதிவேற்றப்பட்ட குறிப்புகளின் படி..." (According to the uploaded notes...).
    - Explicitly distinguish statements backed by the teacher's notes from general biological principles.
    - If the uploaded note does not cover something, rely on standard GCE A/L syllabus knowledge and state so.
 5. ACADEMIC HONESTY & ACCURACY:
@@ -187,11 +184,11 @@ CORE PEDAGOGICAL DIRECTIVES:
 
     let contextPrompt = '';
     if (notesContext && typeof notesContext === 'string' && notesContext.trim().length > 0) {
-      contextPrompt = `\n\n--- UPLOADED NOTES CONTEXT (à®ªà®¤à®¿à®µà¯‡à®±à¯à®±à®ªà¯à®ªà®Ÿà¯à®Ÿ à®•à¯à®±à®¿à®ªà¯à®ªà¯à®•à®³à¯) ---\n${notesContext.slice(0, 15000)}\n--- END OF CONTEXT ---\n`;
+      contextPrompt = `\n\n--- UPLOADED NOTES CONTEXT (பதிவேற்றப்பட்ட குறிப்புகள்) ---\n${notesContext.slice(0, 15000)}\n--- END OF CONTEXT ---\n`;
     }
 
     if (currentTopic) {
-      contextPrompt += `\n[à®¤à®±à¯à®ªà¯‹à®¤à¯ˆà®¯ à®…à®²à®•à¯ / Current Topic: ${currentTopic}]\n`;
+      contextPrompt += `\n[தற்போதைய அலகு / Current Topic: ${currentTopic}]\n`;
     }
 
     // Build contents array supporting conversational history
@@ -211,7 +208,7 @@ CORE PEDAGOGICAL DIRECTIVES:
     // Append current user message with context
     contents.push({
       role: 'user',
-      parts: [{ text: `${contextPrompt}\nà®®à®¾à®£à®µà®°à®¿à®©à¯ à®•à¯‡à®³à¯à®µà®¿ (Student question): ${message}` }],
+      parts: [{ text: `${contextPrompt}\nமாணவரின் கேள்வி (Student question): ${message}` }],
     });
 
     const response = await ai.models.generateContent({
@@ -224,7 +221,7 @@ CORE PEDAGOGICAL DIRECTIVES:
       },
     });
 
-    const answer = response.text || 'à®ªà®¤à®¿à®²à¯ à®‰à®°à¯à®µà®¾à®•à¯à®•à¯à®µà®¤à®¿à®²à¯ à®¤à®Ÿà®™à¯à®•à®²à¯ à®à®±à¯à®ªà®Ÿà¯à®Ÿà®¤à¯. à®¤à®¯à®µà¯à®šà¯†à®¯à¯à®¤à¯ à®®à¯€à®£à¯à®Ÿà¯à®®à¯ à®•à¯‡à®Ÿà¯à®•à®µà¯à®®à¯.';
+    const answer = response.text || 'பதில் உருவாக்குவதில் தடங்கல் ஏற்பட்டது. தயவுசெய்து மீண்டும் கேட்கவும்.';
 
     return res.json({
       success: true,
@@ -235,19 +232,19 @@ CORE PEDAGOGICAL DIRECTIVES:
     console.error('Gemini Tutor Error:', error);
     return res.status(500).json({
       success: false,
-      error: 'AI à®†à®šà®¿à®°à®¿à®¯à®°à¯à®Ÿà®©à¯ à®‡à®£à¯ˆà®ªà¯à®ªà®¤à®¿à®²à¯ à®ªà®¿à®´à¯ˆ à®à®±à¯à®ªà®Ÿà¯à®Ÿà®¤à¯: ' + (error?.message || 'Server error'),
+      error: 'AI ஆசிரியருடன் இணைப்பதில் பிழை ஏற்பட்டது: ' + (error?.message || 'Server error'),
     });
   }
 });
 
 // AI Practice Questions Generator Endpoint
-app.post('/api/quiz/generate', requireFirebaseAuth, async (req, res) => {
+app.post('/api/quiz/generate', async (req, res) => {
   try {
-    const userIdentifier = res.locals.firebaseUid as string;
+    const userIdentifier = req.headers['x-user-id'] as string || req.ip || 'anonymous';
     const rateCheck = checkRateLimit(userIdentifier);
     if (!rateCheck.allowed) {
       return res.status(429).json({
-        error: 'à®µà®¿à®©à®¾à®Ÿà®¿ à®µà®¿à®©à®¾ à®‰à®°à¯à®µà®¾à®•à¯à®• à®µà®°à®®à¯à®ªà¯ˆ à®Žà®Ÿà¯à®Ÿà®¿à®µà®¿à®Ÿà¯à®Ÿà¯€à®°à¯à®•à®³à¯. à®¤à®¯à®µà¯à®šà¯†à®¯à¯à®¤à¯ à®šà®¿à®±à®¿à®¤à¯ à®¨à¯‡à®°à®®à¯ à®•à®¾à®¤à¯à®¤à®¿à®°à¯à®•à¯à®•à®µà¯à®®à¯.',
+        error: 'வினாடி வினா உருவாக்க வரம்பை எட்டிவிட்டீர்கள். தயவுசெய்து சிறிது நேரம் காத்திருக்கவும்.',
       });
     }
 
@@ -255,10 +252,10 @@ app.post('/api/quiz/generate', requireFirebaseAuth, async (req, res) => {
 
     const prompt = `Generate ${count} Sri Lankan GCE Advanced Level (A/L) Biology examination-style multiple-choice questions (MCQs) for the topic: "${topic || 'General A/L Biology'}".
 Requirements:
-1. Language: Accurate Tamil with English scientific terms in parentheses (e.g., "à®•à®²à®®à¯†à®©à¯à®šà®µà¯à®µà¯ (Cell membrane)").
+1. Language: Accurate Tamil with English scientific terms in parentheses (e.g., "கலமென்சவ்வு (Cell membrane)").
 2. Provide exactly 5 options (A, B, C, D, E) per question matching the Sri Lankan A/L 5-option MCQ format.
 3. Include an accurate correctOption index (0 to 4).
-4. Provide a detailed educational explanation (à®µà®¿à®³à®•à¯à®•à®®à¯) in Tamil explaining why the correct option is right and common pitfalls.
+4. Provide a detailed educational explanation (விளக்கம்) in Tamil explaining why the correct option is right and common pitfalls.
 5. Clearly indicate that these are AI-generated practice questions, not past paper examination questions.`;
 
     const response = await ai.models.generateContent({
@@ -299,7 +296,204 @@ Requirements:
     console.error('Quiz Generation Error:', error);
     return res.status(500).json({
       success: false,
-      error: 'à®ªà®¯à®¿à®±à¯à®šà®¿à®•à¯ à®•à¯‡à®³à¯à®µà®¿à®•à®³à¯ˆ à®‰à®°à¯à®µà®¾à®•à¯à®•à¯à®µà®¤à®¿à®²à¯ à®ªà®¿à®´à¯ˆ à®à®±à¯à®ªà®Ÿà¯à®Ÿà®¤à¯: ' + (error?.message || 'Server error'),
+      error: 'பயிற்சிக் கேள்விகளை உருவாக்குவதில் பிழை ஏற்பட்டது: ' + (error?.message || 'Server error'),
+    });
+  }
+});
+
+// Secure Quiz Grading Endpoint for Vercel
+// The client must send: Authorization: Bearer <Firebase ID token>
+app.post('/api/quiz/grade', async (req, res) => {
+  try {
+    const authorization = req.headers.authorization || '';
+    const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
+
+    if (!tokenMatch) {
+      return res.status(401).json({
+        success: false,
+        error: 'அங்கீகாரம் இல்லை. மீண்டும் உள்நுழைந்து முயற்சிக்கவும்.',
+      });
+    }
+
+    const firebaseApp = getFirebaseAdminApp();
+    const decodedToken = await getAuth(firebaseApp).verifyIdToken(tokenMatch[1]);
+    const userId = decodedToken.uid;
+
+    const rateCheck = checkRateLimit(`quiz-grade:${userId}`);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: 'வினாடி வினா மதிப்பீட்டு வரம்பை எட்டிவிட்டீர்கள். சிறிது நேரம் கழித்து முயற்சிக்கவும்.',
+      });
+    }
+
+    const { topic, answers } = req.body ?? {};
+
+    if (typeof topic !== 'string' || !topic.trim() || topic.length > 100) {
+      return res.status(400).json({
+        success: false,
+        error: 'சரியான பாடத் தலைப்பை வழங்கவும்.',
+      });
+    }
+
+    if (!Array.isArray(answers) || answers.length < 1 || answers.length > 50) {
+      return res.status(400).json({
+        success: false,
+        error: 'சமர்ப்பிக்கப்பட்ட பதில்கள் சரியான வடிவில் இல்லை.',
+      });
+    }
+
+    const seenQuestionIds = new Set<string>();
+    for (const answer of answers) {
+      if (
+        !answer ||
+        typeof answer.questionId !== 'string' ||
+        !answer.questionId.trim() ||
+        answer.questionId.length > 150 ||
+        !Number.isInteger(answer.selectedIndex) ||
+        answer.selectedIndex < 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'ஒன்றாவது பதிலின் தரவு தவறாக உள்ளது.',
+        });
+      }
+
+      if (seenQuestionIds.has(answer.questionId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'ஒரே கேள்விக்கு ஒன்றுக்கு மேற்பட்ட பதில்கள் அனுப்பப்பட்டுள்ளன.',
+        });
+      }
+      seenQuestionIds.add(answer.questionId);
+    }
+
+    const db = getFirestore(firebaseApp);
+
+    // Server-side question bank: correct answers are never trusted from the browser.
+    const staticQuestionMap = new Map(
+      SERVER_QUIZ_QUESTIONS.map((question) => [question.id, question]),
+    );
+
+    const gradedAnswers: Array<{
+      questionId: string;
+      selectedIndex: number;
+      correct: boolean;
+      correctIndex: number;
+      explanation: string;
+    }> = [];
+
+    let score = 0;
+
+    for (const submittedAnswer of answers) {
+      const questionId = submittedAnswer.questionId;
+      let questionData: {
+        options: string[];
+        correctIndex: number;
+        explanation: string;
+      } | null = null;
+
+      const staticQuestion = staticQuestionMap.get(questionId);
+
+      if (staticQuestion) {
+        questionData = {
+          options: staticQuestion.options,
+          correctIndex: staticQuestion.correctIndex,
+          explanation: staticQuestion.explanation,
+        };
+      } else {
+        // Dynamically stored questions are read from the private server-side collection.
+        const questionSnapshot = await db
+          .collection('quiz_questions')
+          .doc(questionId)
+          .get();
+
+        if (questionSnapshot.exists) {
+          const data = questionSnapshot.data();
+          if (
+            data &&
+            Array.isArray(data.options) &&
+            Number.isInteger(data.correctIndex) &&
+            typeof data.explanation === 'string'
+          ) {
+            questionData = {
+              options: data.options,
+              correctIndex: data.correctIndex,
+              explanation: data.explanation,
+            };
+          }
+        }
+      }
+
+      if (!questionData) {
+        return res.status(400).json({
+          success: false,
+          error: `சரிபார்க்க முடியாத கேள்வி உள்ளது: ${questionId}`,
+        });
+      }
+
+      if (
+        questionData.options.length < 2 ||
+        questionData.options.length > 10 ||
+        questionData.correctIndex < 0 ||
+        questionData.correctIndex >= questionData.options.length ||
+        submittedAnswer.selectedIndex >= questionData.options.length
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'கேள்வி அல்லது தேர்ந்தெடுக்கப்பட்ட பதிலின் தரவு தவறாக உள்ளது.',
+        });
+      }
+
+      const isCorrect = submittedAnswer.selectedIndex === questionData.correctIndex;
+      if (isCorrect) score += 1;
+
+      gradedAnswers.push({
+        questionId,
+        selectedIndex: submittedAnswer.selectedIndex,
+        correct: isCorrect,
+        correctIndex: questionData.correctIndex,
+        explanation: questionData.explanation,
+      });
+    }
+
+    const total = gradedAnswers.length;
+    const percentage = Math.round((score / total) * 100);
+
+    await db.collection('quiz_results').add({
+      userId,
+      topic: topic.trim(),
+      score,
+      total,
+      percentage,
+      completedAt: new Date().toISOString(),
+    });
+
+    return res.json({
+      success: true,
+      score,
+      total,
+      percentage,
+      gradedAnswers,
+    });
+  } catch (error: any) {
+    console.error('Quiz grading error:', error);
+
+    if (
+      error?.code === 'auth/argument-error' ||
+      error?.code === 'auth/id-token-expired' ||
+      error?.code === 'auth/invalid-id-token'
+    ) {
+      return res.status(401).json({
+        success: false,
+        error: 'உள்நுழைவு காலாவதியாகிவிட்டது. மீண்டும் உள்நுழைந்து முயற்சிக்கவும்.',
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'வினாடி வினாவை மதிப்பீடு செய்யும்போது பிழை ஏற்பட்டது: ' +
+        (error?.message || 'Server error'),
     });
   }
 });
