@@ -126,7 +126,7 @@ useEffect(() => {
     const result = await response.json();
 
     if (!response.ok || !result.success) {
-      throw new Error(result.message || 'α««α«ñα«┐α«¬α»ìα«¬α»åα«úα»ì α«òα«úα«òα»ìα«òα«┐α«ƒ α««α»üα«ƒα«┐α«»α«╡α«┐α«▓α»ìα«▓α»ê.');
+      throw new Error(result.message || 'மதிப்பெண் கணக்கிட முடியவில்லை.');
     }
 
     setScore(result.score);
@@ -134,7 +134,7 @@ useEffect(() => {
     setIsQuizComplete(true);
   } catch (error) {
     console.error('Quiz grading error:', error);
-    alert('α««α«ñα«┐α«¬α»ìα«¬α»åα«úα»ì α«òα«úα«òα»ìα«òα«┐α«ƒα»üα«╡α«ñα«┐α«▓α»ì α«¬α«┐α«┤α»ê. α««α»Çα«úα»ìα«ƒα»üα««α»ì α««α»üα«»α«▒α»ìα«Üα«┐α«òα»ìα«òα«╡α»üα««α»ì.');
+    alert('மதிப்பெண் கணக்கிடுவதில் பிழை. மீண்டும் முயற்சிக்கவும்.');
   }
 };
 
@@ -169,14 +169,14 @@ useEffect(() => {
 
       const data = await res.json();
       if (!res.ok || !data.success || !Array.isArray(data.questions) || data.questions.length === 0) {
-        throw new Error(data.error || 'α«╡α«┐α«⌐α«╛α«òα»ìα«òα«│α»ê α«ëα«░α»üα«╡α«╛α«òα»ìα«ò α««α»üα«ƒα«┐α«»α«╡α«┐α«▓α»ìα«▓α»ê.');
+        throw new Error(data.error || 'வினாக்களை உருவாக்க முடியவில்லை.');
       }
 
       setQuestions(data.questions);
-      setAiNotice('AI-α«åα«▓α»ì α«ëα«░α»üα«╡α«╛α«òα»ìα«òα«¬α»ìα«¬α«ƒα»ìα«ƒ α««α«╛α«ñα«┐α«░α«┐α«¬α»ì α«¬α«»α«┐α«▒α»ìα«Üα«┐α«òα«│α»ì α«Åα«▒α»ìα«▒α«¬α»ìα«¬α«ƒα»ìα«ƒα«⌐ (α«çα«ñα»ü α«àα«ñα«┐α«òα«╛α«░α«¬α»ìα«¬α»éα«░α»ìα«╡ α«òα«ƒα«¿α»ìα«ñα«òα«╛α«▓ α«╡α«┐α«⌐α«╛α«ñα»ìα«ñα«╛α«│α»ì α«àα«▓α»ìα«▓).');
+      setAiNotice('AI-ஆல் உருவாக்கப்பட்ட மாதிரிப் பயிற்சிகள் ஏற்றப்பட்டன (இது அதிகாரப்பூர்வ கடந்தகால வினாத்தாள் அல்ல).');
       restartQuiz(data.questions);
     } catch (err: any) {
-      alert('α«╡α«┐α«⌐α«╛α«òα»ìα«òα«│α»ì α«ëα«░α»üα«╡α«╛α«òα»ìα«òα»üα«╡α«ñα«┐α«▓α»ì α«¬α«┐α«┤α»ê: ' + (err?.message || 'Server error'));
+      alert('வினாக்கள் உருவாக்குவதில் பிழை: ' + (err?.message || 'Server error'));
     } finally {
       setIsAiGenerating(false);
     }
@@ -194,10 +194,10 @@ useEffect(() => {
         <div>
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <HelpCircle className="w-6 h-6 text-amber-600" />
-            <span>α««α«╛α«ñα«┐α«░α«┐α«¬α»ì α«¬α«»α«┐α«▒α»ìα«Üα«┐α«òα«│α»ì (Practice Questions)</span>
+            <span>மாதிரிப் பயிற்சிகள் (Practice Questions)</span>
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            α«çα«▓α«Öα»ìα«òα»ê α«ëα«»α«░α»ìα«ñα«░ α«ëα«»α«┐α«░α«┐α«»α«▓α»ì 5-α«ñα»åα«░α«┐α«╡α»ü α«¬α«▓α»ìα«ñα»çα«░α»ìα«╡α»ü α«╡α«┐α«⌐α«╛α«òα»ìα«òα«│α»ì (5-Option MCQs)
+            இலங்கை உயர்தர உயிரியல் 5-தெரிவு பல்தேர்வு வினாக்கள் (5-Option MCQs)
           </p>
         </div>
 
@@ -212,7 +212,7 @@ useEffect(() => {
           ) : (
             <Sparkles className="w-4 h-4 text-purple-200" />
           )}
-          <span>AI α«¬α»üα«ñα«┐α«» α«╡α«┐α«⌐α«╛α«òα»ìα«òα«│α»ê α«ëα«░α»üα«╡α«╛α«òα»ìα«òα»ü</span>
+          <span>AI புதிய வினாக்களை உருவாக்கு</span>
         </button>
       </div>
 
@@ -220,13 +220,13 @@ useEffect(() => {
       <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <BookOpen className="w-4 h-4 text-gray-400" />
-          <span className="text-xs font-semibold text-gray-700">α«àα«▓α«òα»ü α«ñα»åα«░α«┐α«╡α»ü:</span>
+          <span className="text-xs font-semibold text-gray-700">அலகு தெரிவு:</span>
           <select
             value={selectedTopic}
             onChange={(e) => handleTopicChange(e.target.value)}
             className="flex-1 sm:flex-initial text-xs bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-gray-700 font-semibold focus:ring-2 focus:ring-amber-500 outline-hidden"
           >
-            <option value="all">α«àα«⌐α»êα«ñα»ìα«ñα»ü α«àα«▓α«òα»üα«òα«│α»üα««α»ì (All Topics)</option>
+            <option value="all">அனைத்து அலகுகளும் (All Topics)</option>
             {topics.map((t) => (
               <option key={t.id} value={t.name}>
                 {t.name} ({t.nameEn})
@@ -236,7 +236,7 @@ useEffect(() => {
         </div>
 
         <div className="text-xs font-medium text-gray-500">
-          α«╡α«┐α«⌐α«╛α«òα»ìα«òα«│α»ì: <span className="font-bold text-gray-900">{questions.length}</span>
+          வினாக்கள்: <span className="font-bold text-gray-900">{questions.length}</span>
         </div>
       </div>
 
@@ -257,7 +257,7 @@ useEffect(() => {
               {currentQ.topic}
             </span>
             <div className="font-semibold">
-              α«╡α«┐α«⌐α«╛ <span className="text-gray-900 text-sm font-bold">{currentIndex + 1}</span> / {questions.length}
+              வினா <span className="text-gray-900 text-sm font-bold">{currentIndex + 1}</span> / {questions.length}
             </div>
           </div>
 
@@ -310,14 +310,14 @@ useEffect(() => {
 {/* Answer Submission Notice */}
 {isAnswerSubmitted && (
   <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs sm:text-sm text-amber-800">
-    α«ëα«Öα»ìα«òα«│α»ì α«¬α«ñα«┐α«▓α»ì α«¬α«ñα«┐α«╡α»ü α«Üα»åα«»α»ìα«»α«¬α»ìα«¬α«ƒα»ìα«ƒα«ñα»ü. α««α»üα«┤α»ü α««α«ñα«┐α«¬α»ìα«¬α»Çα«ƒα»üα««α»ì α«Üα«░α«┐α«»α«╛α«⌐ α«╡α«┐α«ƒα»êα«òα«│α»üα«òα»ìα«òα«╛α«⌐ α«╡α«┐α«│α«òα»ìα«òα«Öα»ìα«òα«│α»üα««α»ì α«¬α«»α«┐α«▒α»ìα«Üα«┐ α««α»üα«ƒα«┐α«╡α«┐α«▓α»ì α«òα«╛α«ƒα»ìα«ƒα«¬α»ìα«¬α«ƒα»üα««α»ì.
+    உங்கள் பதில் பதிவு செய்யப்பட்டது. முழு மதிப்பீடும் சரியான விடைகளுக்கான விளக்கங்களும் பயிற்சி முடிவில் காட்டப்படும்.
   </div>
 )}
 
           {/* Action buttons */}
           <div className="pt-4 flex items-center justify-between border-t border-gray-100">
             <span className="text-xs text-gray-400 font-medium">
-              α«¬α»üα«│α»ìα«│α«┐α«òα«│α»ì: <strong className="text-gray-800">{score}</strong>
+              புள்ளிகள்: <strong className="text-gray-800">{score}</strong>
             </span>
 
             {!isAnswerSubmitted ? (
@@ -326,14 +326,14 @@ useEffect(() => {
                 disabled={selectedOption === null}
                 className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors disabled:opacity-40"
               >
-                α«╡α«┐α«ƒα»êα«»α»êα«Üα»ì α«Üα««α«░α»ìα«¬α»ìα«¬α«┐ (Submit)
+                விடையைச் சமர்ப்பி (Submit)
               </button>
             ) : (
               <button
                 onClick={handleNextQuestion}
                 className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
               >
-                <span>{currentIndex + 1 < questions.length ? 'α«àα«ƒα»üα«ñα»ìα«ñ α«╡α«┐α«⌐α«╛ (Next)' : 'α««α»üα«ƒα«┐α«╡α»üα«òα«│α»êα«òα»ì α«òα«╛α«úα»ìα«ò (Finish)'}</span>
+                <span>{currentIndex + 1 < questions.length ? 'அடுத்த வினா (Next)' : 'முடிவுகளைக் காண்க (Finish)'}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}
@@ -348,10 +348,10 @@ useEffect(() => {
 
           <div className="space-y-2">
             <h3 className="text-2xl font-extrabold text-gray-900">
-              α«¬α«»α«┐α«▒α»ìα«Üα«┐ α«¿α«┐α«▒α»êα«╡α«ƒα»êα«¿α»ìα«ñα«ñα»ü! ≡ƒÄë
+              பயிற்சி நிறைவடைந்தது! 🎉
             </h3>
             <p className="text-xs text-gray-500">
-              {selectedTopic === 'all' ? 'α«àα«⌐α»êα«ñα»ìα«ñα»ü α«àα«▓α«òα»üα«òα«│α»üα«òα»ìα«òα»üα««α«╛α«⌐' : selectedTopic} α««α«╛α«ñα«┐α«░α«┐α«¬α»ì α«¬α«»α«┐α«▒α»ìα«Üα«┐ α««α»üα«ƒα«┐α«╡α»üα«òα«│α»ì
+              {selectedTopic === 'all' ? 'அனைத்து அலகுகளுக்குமான' : selectedTopic} மாதிரிப் பயிற்சி முடிவுகள்
             </p>
           </div>
 
@@ -361,13 +361,13 @@ useEffect(() => {
               {score} / {questions.length}
             </div>
             <div className="text-xs font-bold text-emerald-900 mt-1">
-              α«ñα»çα«░α»ìα«Üα»ìα«Üα«┐ α«╡α»Çα«ñα««α»ì: {percentage}%
+              தேர்ச்சி வீதம்: {percentage}%
             </div>
           </div>
           {/* Final Answer Review */}
 <div className="text-left space-y-4">
   <h4 className="text-lg font-bold text-gray-900">
-    α«╡α«┐α«ƒα»êα«òα«│α«┐α«⌐α»ì α«╡α«┐α«│α«òα»ìα«òα««α»ì (Answer Review)
+    விடைகளின் விளக்கம் (Answer Review)
   </h4>
 
   {gradedAnswers.map((answer, index) => {
@@ -387,15 +387,15 @@ useEffect(() => {
         </p>
 
         <p className={answer.correct ? 'text-emerald-700' : 'text-red-700'}>
-          α«ëα«Öα»ìα«òα«│α»ì α«¬α«ñα«┐α«▓α»ì: {question.options[answer.selectedIndex]}
+          உங்கள் பதில்: {question.options[answer.selectedIndex]}
         </p>
 
         <p className="text-emerald-700 font-semibold">
-          α«Üα«░α«┐α«»α«╛α«⌐ α«╡α«┐α«ƒα»ê: {question.options[answer.correctIndex]}
+          சரியான விடை: {question.options[answer.correctIndex]}
         </p>
 
         <p className="text-sm text-gray-700 leading-relaxed">
-          α«╡α«┐α«│α«òα»ìα«òα««α»ì: {answer.explanation}
+          விளக்கம்: {answer.explanation}
         </p>
       </div>
     );
@@ -404,10 +404,10 @@ useEffect(() => {
 
           <p className="text-xs text-gray-600 max-w-sm mx-auto leading-relaxed">
             {percentage >= 80
-              ? 'α««α«┐α«òα«Üα»ìα«Üα«┐α«▒α«¿α»ìα«ñ α«¬α»åα«▒α»üα«¬α»çα«▒α»ü! α«ëα«»α«┐α«░α«┐α«»α«▓α»ì α«Äα«úα»ìα«úα«òα»ìα«òα«░α»üα«òα»ìα«òα«│α«┐α«▓α»ì α«¿α»Çα«Öα»ìα«òα«│α»ì α«Üα«┐α«▒α«¿α»ìα«ñα»ü α«╡α«┐α«│α«Öα»ìα«òα»üα«òα«┐α«▒α»Çα«░α»ìα«òα«│α»ì.'
+              ? 'மிகச்சிறந்த பெறுபேறு! உயிரியல் எண்ணக்கருக்களில் நீங்கள் சிறந்து விளங்குகிறீர்கள்.'
               : percentage >= 50
-              ? 'α«¿α«▓α»ìα«▓ α««α»üα«»α«▒α»ìα«Üα«┐! α«ñα«╡α«▒α«╛α«⌐ α«╡α«┐α«ƒα»êα«òα«│α»üα«òα»ìα«òα«╛α«⌐ α«╡α«┐α«│α«òα»ìα«òα«Öα»ìα«òα«│α»ê α««α»Çα«úα»ìα«ƒα»üα««α»ì α«╡α«╛α«Üα«┐α«ñα»ìα«ñα»ü α«ñα«┐α«░α»üα«ñα»ìα«ñα«┐α«òα»ì α«òα»èα«│α»ìα«│α«╡α»üα««α»ì.'
-              : 'α«ñα»èα«ƒα«░α»ìα«¿α»ìα«ñα»ü α«¬α«»α«┐α«▒α»ìα«Üα«┐α«òα«│α»ê α««α»çα«▒α»ìα«òα»èα«│α»ìα«│α«╡α»üα««α»ì. α«òα»üα«▒α«┐α«¬α»ìα«¬α»üα«òα«│α»êα«»α»üα««α»ì AI α«åα«Üα«┐α«░α«┐α«»α«░α«┐α«⌐α»ì α«╡α«┐α«│α«òα»ìα«òα«Öα»ìα«òα«│α»êα«»α»üα««α»ì α«¬α«»α«⌐α»ìα«¬α«ƒα»üα«ñα»ìα«ñα«╡α»üα««α»ì.'}
+              ? 'நல்ல முயற்சி! தவறான விடைகளுக்கான விளக்கங்களை மீண்டும் வாசித்து திருத்திக் கொள்ளவும்.'
+              : 'தொடர்ந்து பயிற்சிகளை மேற்கொள்ளவும். குறிப்புகளையும் AI ஆசிரியரின் விளக்கங்களையும் பயன்படுத்தவும்.'}
           </p>
 
           <div className="pt-2 flex items-center justify-center gap-3">
@@ -416,7 +416,7 @@ useEffect(() => {
               className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>α««α»Çα«úα»ìα«ƒα»üα««α»ì α«¬α«»α«┐α«▒α»ìα«Üα«┐ α«Üα»åα«»α»ì (Retry)</span>
+              <span>மீண்டும் பயிற்சி செய் (Retry)</span>
             </button>
 
             <button
@@ -425,7 +425,7 @@ useEffect(() => {
               className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5"
             >
               <Sparkles className="w-4 h-4" />
-              <span>α«¬α»üα«ñα«┐α«» AI α«╡α«┐α«⌐α«╛α«òα»ìα«òα«│α»ì</span>
+              <span>புதிய AI வினாக்கள்</span>
             </button>
           </div>
         </div>
