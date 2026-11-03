@@ -129,14 +129,17 @@ export function AuthProvider({
 
   const verifyAdminClaim = async (
     user: User,
-    forceRefresh = false
+    _forceRefresh = false
   ): Promise<boolean> => {
     try {
-      const tokenResult = await user.getIdTokenResult(forceRefresh);
+      await user.reload();
 
-      return tokenResult.claims.admin === true;
+      return (
+        user.email?.toLowerCase() === 'nadarasakanesarasa@gmail.com' &&
+        user.emailVerified === true
+      );
     } catch (err) {
-      console.error('Admin claim verification failed:', err);
+      console.error('Admin verification failed:', err);
       return false;
     }
   };
