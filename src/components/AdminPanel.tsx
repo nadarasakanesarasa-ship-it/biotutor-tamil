@@ -166,6 +166,7 @@ export function AdminPanel() {
             topic: lessonTopic,
             subtopic: lessonSubtopic.trim(),
             content: lessonContent.trim(),
+            accessType: 'free',
           });
 
       setNotice(

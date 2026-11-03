@@ -24,6 +24,7 @@ export interface BiologyNote {
   authorName?: string;
   createdAt: string;
   updatedAt: string;
+  accessType: 'free' | 'premium';
 }
 
 export interface PdfDocument {

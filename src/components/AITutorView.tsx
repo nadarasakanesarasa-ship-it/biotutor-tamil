@@ -102,7 +102,9 @@ export const AITutorView: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': currentUser?.uid || 'anonymous',
+          ...(currentUser ? {
+            Authorization: `Bearer ${await currentUser.getIdToken()}`,
+          } : {}),
         },
         body: JSON.stringify({
           message: textToSend.trim(),

@@ -122,6 +122,7 @@ export const NotesView: React.FC = () => {
           subtopic: subtopic.trim() || undefined,
           content: content.trim(),
           authorName: currentUser?.displayName || 'ஆசிரியர்',
+          accessType: 'free',
         });
         if (ok) {
           setEditorSuccess('புதிய குறிப்பு வெற்றிகரமாக சேமிக்கப்பட்டது (Note saved)!');

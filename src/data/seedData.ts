@@ -122,6 +122,7 @@ export const INITIAL_NOTES: BiologyNote[] = [
 - தெரிவுசெய்து உட்புகவிடும் மென்சவ்வாக (Selectively permeable membrane) தொழிற்பட்டு பதார்த்தங்களின் போக்குவரத்தைக் கட்டுப்படுத்துதல்.
 - கலத்தின் உள்ளக சூழலைப் பேணுதல் (Homeostasis).
 - சமிக்ஞை கடத்துகை (Signal transduction).`,
+    accessType: 'free',
     authorId: 'system_admin',
     authorName: 'BioTutor Teacher',
     createdAt: '2026-10-25T10:00:00.000Z',
@@ -148,6 +149,7 @@ export const INITIAL_NOTES: BiologyNote[] = [
 
 ## 3. கிரான்ஸ் கட்டமைப்பின் முக்கியத்துவம் (Kranz Anatomy)
 C4 தாவரங்களில் கற்றைமடல் கலங்கள் (Bundle sheath cells) மற்றும் நடுவிழையக் கலங்கள் (Mesophyll cells) என இரு வேறு கலங்களில் கல்வின் வட்டம் (Calvin cycle) மற்றும் CO2 நிலைநிறுத்தம் பிரிக்கப்பட்டுள்ளதால் RuBisCO நொதியம் O2 உடன் இணைவது தடுக்கப்பட்டு ஒளிச்சுவாசம் குறைக்கப்பட்டு விளைதிறன் அதிகரிக்கப்படுகிறது.`,
+    accessType: 'free',
     authorId: 'system_admin',
     authorName: 'BioTutor Teacher',
     createdAt: '2026-10-26T11:30:00.000Z',
@@ -170,6 +172,7 @@ C4 தாவரங்களில் கற்றைமடல் கலங்க
 - இரு வேறுபட்ட இயல்புகளுக்கான காரணிகள் புணரிகள் உருவாகும் போது ஒன்றிலிருந்து ஒன்று சுயாதீனமாகப் பங்கீடு அடைகின்றன.
 - இருபண்புக் கலப்பில் (Dihybrid cross) F2 சந்ததியில் தோற்றவமைப்பு விகிதம் **9 : 3 : 3 : 1** ஆகும்.
 - **குறிப்பு (Limitation):** பிணைப்புற்ற மரபணுக்கள் (Linked genes) இவ்விதிக்கு கட்டுப்படுவதில்லை.`,
+    accessType: 'free',
     authorId: 'system_admin',
     authorName: 'BioTutor Teacher',
     createdAt: '2026-10-27T08:15:00.000Z',
