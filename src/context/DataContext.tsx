@@ -1,4 +1,4 @@
-
+﻿
 import React, {
   createContext,
   useContext,
@@ -123,9 +123,6 @@ const DataContext = createContext<DataContextType | undefined>(
 // CLOUD FUNCTIONS URL
 // --------------------------------------------------
 
-const FUNCTIONS_BASE_URL = import.meta.env.DEV
-  ? 'http://127.0.0.1:5001/biotutor-tamil/asia-south1'
-  : 'https://asia-south1-biotutor-tamil.cloudfunctions.net';
 
 // --------------------------------------------------
 // PROVIDER
@@ -330,91 +327,12 @@ export function DataProvider({
   // --------------------------------------------------
 
   const loadAdminUsers = useCallback(
-    async (pageToken?: string) => {
-      const user = currentUser;
-
-      if (!user || !isAdmin) {
-        setAdminUsers([]);
-        setAdminUsersNextPageToken(null);
-        return;
-      }
-
-      setAdminUsersLoading(true);
-
-      try {
-        const idToken = await user.getIdToken();
-
-        const url = new URL(
-          `${FUNCTIONS_BASE_URL}/getAdminUsers`
-        );
-
-        if (pageToken) {
-          url.searchParams.set('pageToken', pageToken);
-        }
-
-        const response = await fetch(url.toString(), {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          throw new Error(
-            `Admin users request failed: ${response.status}`
-          );
-        }
-
-        const result = await response.json();
-
-        if (
-          result.success !== true ||
-          !Array.isArray(result.users)
-        ) {
-          throw new Error('Invalid admin users response');
-        }
-
-        if (!authUserIsCurrent(user.uid)) {
-          return;
-        }
-
-        const fetchedUsers = result.users as AdminUser[];
-
-        setAdminUsers((previous) => {
-          if (!pageToken) {
-            return fetchedUsers;
-          }
-
-          const existingIds = new Set(
-            previous.map((item) => item.uid)
-          );
-
-          return [
-            ...previous,
-            ...fetchedUsers.filter(
-              (item) => !existingIds.has(item.uid)
-            ),
-          ];
-        });
-
-        setAdminUsersNextPageToken(
-          typeof result.nextPageToken === 'string'
-            ? result.nextPageToken
-            : null
-        );
-      } catch (error) {
-        console.error('Admin users loading failed:', error);
-
-        if (!pageToken) {
-          setAdminUsers([]);
-          setAdminUsersNextPageToken(null);
-        }
-      } finally {
-        setAdminUsersLoading(false);
-      }
+    async (_pageToken?: string): Promise<void> => {
+      setAdminUsers([]);
+      setAdminUsersNextPageToken(null);
+      setAdminUsersLoading(false);
     },
-    [currentUser, isAdmin]
+    []
   );
 
   // --------------------------------------------------
@@ -674,7 +592,7 @@ export function DataProvider({
     topicData: Omit<BiologyTopic, 'id'>
   ): Promise<boolean> => {
     if (!currentUser || !isAdmin) {
-      throw new Error('நிர்வாகி அனுமதி தேவை.');
+      throw new Error('à®¨à®¿à®°à¯à®µà®¾à®•à®¿ à®…à®©à¯à®®à®¤à®¿ à®¤à¯‡à®µà¯ˆ.');
     }
 
     const slug =
@@ -808,7 +726,7 @@ export function DataProvider({
     >
   ): Promise<boolean> => {
     if (!currentUser || !isAdmin) {
-      throw new Error('நிர்வாகி அனுமதி தேவை.');
+      throw new Error('à®¨à®¿à®°à¯à®µà®¾à®•à®¿ à®…à®©à¯à®®à®¤à®¿ à®¤à¯‡à®µà¯ˆ.');
     }
 
     const path = 'notes';
@@ -824,7 +742,7 @@ export function DataProvider({
       subtopic: noteData.subtopic ?? '',
       id: noteId,
       authorId: currentUser.uid,
-      authorName: userProfile?.displayName || 'ஆசிரியர்',
+      authorName: userProfile?.displayName || 'à®†à®šà®¿à®°à®¿à®¯à®°à¯',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -858,7 +776,7 @@ export function DataProvider({
     noteData: Partial<BiologyNote>
   ): Promise<boolean> => {
     if (!currentUser || !isAdmin) {
-      throw new Error('நிர்வாகி அனுமதி தேவை.');
+      throw new Error('à®¨à®¿à®°à¯à®µà®¾à®•à®¿ à®…à®©à¯à®®à®¤à®¿ à®¤à¯‡à®µà¯ˆ.');
     }
 
     const path = `notes/${id}`;
@@ -869,7 +787,7 @@ export function DataProvider({
       );
 
       if (!existing) {
-        throw new Error('குறிப்பு காணப்படவில்லை.');
+        throw new Error('à®•à¯à®±à®¿à®ªà¯à®ªà¯ à®•à®¾à®£à®ªà¯à®ªà®Ÿà®µà®¿à®²à¯à®²à¯ˆ.');
       }
 
       const updated = {
@@ -908,7 +826,7 @@ export function DataProvider({
     id: string
   ): Promise<boolean> => {
     if (!currentUser || !isAdmin) {
-      throw new Error('நிர்வாகி அனுமதி தேவை.');
+      throw new Error('à®¨à®¿à®°à¯à®µà®¾à®•à®¿ à®…à®©à¯à®®à®¤à®¿ à®¤à¯‡à®µà¯ˆ.');
     }
 
     const path = `notes/${id}`;
@@ -938,7 +856,7 @@ export function DataProvider({
     >
   ): Promise<boolean> => {
     if (!currentUser || !isAdmin) {
-      throw new Error('நிர்வாகி அனுமதி தேவை.');
+      throw new Error('à®¨à®¿à®°à¯à®µà®¾à®•à®¿ à®…à®©à¯à®®à®¤à®¿ à®¤à¯‡à®µà¯ˆ.');
     }
 
     const path = 'pdfs';
@@ -984,7 +902,7 @@ export function DataProvider({
     id: string
   ): Promise<boolean> => {
     if (!currentUser || !isAdmin) {
-      throw new Error('நிர்வாகி அனுமதி தேவை.');
+      throw new Error('à®¨à®¿à®°à¯à®µà®¾à®•à®¿ à®…à®©à¯à®®à®¤à®¿ à®¤à¯‡à®µà¯ˆ.');
     }
 
     const path = `pdfs/${id}`;
@@ -1083,7 +1001,7 @@ export function DataProvider({
 
       if (titleMatch || contentMatch || wordHits >= 1) {
         matchedPassages.push(
-          `[பாடக்குறிப்பு / Note: "${note.title}" (${note.topic})]\n${note.content.slice(0, 1500)}`
+          `[à®ªà®¾à®Ÿà®•à¯à®•à¯à®±à®¿à®ªà¯à®ªà¯ / Note: "${note.title}" (${note.topic})]\n${note.content.slice(0, 1500)}`
         );
       }
 
@@ -1124,7 +1042,7 @@ export function DataProvider({
 
         if (titleMatch || textMatch || wordHits >= 1) {
           matchedPassages.push(
-            `[PDF ஆவண உரை / PDF Text: "${pdf.title}" (${pdf.topic})]\n${pdf.extractedText.slice(0, 1500)}`
+            `[PDF à®†à®µà®£ à®‰à®°à¯ˆ / PDF Text: "${pdf.title}" (${pdf.topic})]\n${pdf.extractedText.slice(0, 1500)}`
           );
         }
       }
@@ -1194,3 +1112,5 @@ export function useData() {
 
   return context;
 }
+
+
