@@ -29,9 +29,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-  return isSignedIn() &&
-         request.auth.token.get('admin', false) == true;
-}
+      return isSignedIn() &&
+             request.auth.token.get('email', '') == 'nadarasakanesarasa@gmail.com' &&
+             request.auth.token.get('email_verified', false) == true;
+    }
     // Entity Validation Helpers
     function isValidUser(data) {
       return data.keys().hasAll(['email', 'displayName', 'role']) &&
